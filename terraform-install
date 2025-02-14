@@ -1,0 +1,30 @@
+name: Terraform Plan and Apply
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  terraform-setup:
+    name: Setup Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install JQ
+        run: sudo apt-get install -y jq
+
+      - name: Install Terraform
+        run: |
+          sudo apt-get update && sudo apt-get install -y software-properties-common gnupg
+          wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt-get update && sudo apt-get install -y terraform
+
+      - name: Verify Installation
+        run: |
+          terraform -version
+          jq --version
