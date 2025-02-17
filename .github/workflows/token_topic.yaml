@@ -1,0 +1,54 @@
+name: Terraform Cloud Token Rotation
+
+on:
+  schedule:
+    # Run this workflow every 25 days to ensure the token is updated before it expires
+    - cron: '0 0 */25 * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  rotate-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Generate new Terraform Cloud API token
+        id: generate-token
+        run: |
+          # Use Terraform Cloud API to generate a new token
+          RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${{ secrets.TF_API_TOKEN }}" \
+            -H "Content-Type: application/vnd.api+json" \
+            -d '{
+              "data": {
+                "type": "authentication-tokens",
+                "attributes": {
+                  "description": "GitHub Actions Token - Auto-generated"
+                }
+              }
+            }' \
+            "https://app.terraform.io/api/v2/users/self/authentication-tokens")
+
+          # Extract the new token from the response
+          NEW_TOKEN=$(echo $RESPONSE | jq -r '.data.attributes.token')
+          echo "New token generated."
+
+          # Mask the token in logs
+          echo "::add-mask::$NEW_TOKEN"
+
+          # Set the new token as an output
+          echo "NEW_TOKEN=$NEW_TOKEN" >> $GITHUB_ENV
+
+      - name: Update GitHub Secret
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { NEW_TOKEN } = process.env;
+            await github.rest.actions.createOrUpdateRepoSecret({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              secret_name: 'TF_API_TOKEN',
+              encrypted_value: NEW_TOKEN,
+            });
+            console.log('GitHub secret updated successfully.');
